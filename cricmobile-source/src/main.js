@@ -11,21 +11,31 @@ import { CapacitorUpdater } from '@capgo/capacitor-updater';
 
 // In the iPhone app: fetch newer game builds published as GitHub release assets. Applied the next time the app opens.
 const UPDATE_BASE = 'https://github.com/Declan-Coyne/cricmobile/releases/latest/download/';
-// app.updateStatus is shown in Settings so you can see the updater working
+// app.updateStatus is shown in Settings > About so you can see each step of the updater
 async function checkForUpdate(app) {
-  app.updateStatus = 'Checking for updates…';
+  const step = t => { app.updateStatus = t; };
+  let stage = 'start';
   try {
-    await CapacitorUpdater.notifyAppReady(); // tells the updater this build started fine (else it rolls back)
-    const r = await CapacitorHttp.get({ url: UPDATE_BASE + 'version.json' });
-    const remote = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+    stage = 'ready'; await CapacitorUpdater.notifyAppReady(); // this build started fine (else the plugin rolls back)
+    stage = 'version check'; step('Checking for updates…');
+    const r = await CapacitorHttp.get({ url: UPDATE_BASE + 'version.json', responseType: 'text' });
     if (r.status !== 200) throw new Error('HTTP ' + r.status);
-    if (!(+remote.build > __BUILD__)) { app.updateStatus = `Up to date (latest is build ${remote.build})`; return; }
-    app.updateStatus = `Downloading build ${remote.build}…`;
-    const b = await CapacitorUpdater.download({ url: UPDATE_BASE + 'bundle.zip', version: '1.0.' + remote.build });
-    await CapacitorUpdater.next({ id: b.id });
-    app.updateStatus = `Build ${remote.build} downloaded · close and reopen the app to play it`;
-    app.ui.toast('Update downloaded · close and reopen CricMobile to play it', 4000);
-  } catch (e) { console.warn('update check failed', e); app.updateStatus = 'Could not check for updates (offline?)'; } // keep playing the current build
+    const build = +(typeof r.data === 'string' ? JSON.parse(r.data) : r.data).build;
+    if (!(build > __BUILD__)) return step(`Up to date (latest is build ${build})`);
+    const version = '1.0.' + build;
+    stage = 'download'; step(`Downloading build ${build}…`);
+    const have = (await CapacitorUpdater.list()).bundles.find(x => x.version === version && x.status !== 'error');
+    const bundle = have || await CapacitorUpdater.download({ url: `https://github.com/Declan-Coyne/cricmobile/releases/download/build-${build}/bundle.zip`, version });
+    stage = 'install';
+    if (app.game.m) { // mid-match: don't reload under the player, install on next launch
+      await CapacitorUpdater.next({ id: bundle.id });
+      step(`Build ${build} downloaded · close and reopen the app to play it`);
+      app.ui.toast('Update downloaded · close and reopen CricMobile to play it', 4000);
+    } else {
+      step(`Installing build ${build}…`);
+      await CapacitorUpdater.set({ id: bundle.id }); // reloads the app straight into the new build
+    }
+  } catch (e) { console.warn('update failed', e); step(`Update failed at ${stage}: ${(e && e.message) || e}`); } // keep playing the current build
 }
 
 const LS = {
