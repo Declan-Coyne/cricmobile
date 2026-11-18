@@ -240,8 +240,8 @@ export class Game {
     this.setCam('bowl', true);
     // scoreboard screen
     const tn = teams[m.teamIds[inn.bat]].short;
-    if (!this.practice) this.stadium.drawBoard({ l1: tn + (inn.target ? `  need ${Math.max(0, inn.target - inn.runs)}` : ''), l2: `${inn.runs}/${inn.wkts}`, l3: `${R.oversStr(inn.balls)} overs` });
-    else this.stadium.drawBoard({ l1: 'NETS', l2: `${this.practice.runs}/${this.practice.outs}`, l3: `${this.practice.balls} balls` });
+    if (!this.practice) this.stadium.drawBoard({ l1: tn + (inn.target ? `  need ${Math.max(0, inn.target - inn.runs)}` : ''), l2: R.score(inn.runs, inn.wkts), l3: `${R.oversStr(inn.balls)} overs` });
+    else this.stadium.drawBoard({ l1: 'NETS', l2: R.score(this.practice.runs, this.practice.outs), l3: `${this.practice.balls} balls` });
 
     this.t0 = this.time;
     const role = this.userRole();

@@ -16,6 +16,13 @@ const h = (tag, attrs = {}, ...kids) => {
 };
 const sur = n => { const p = n.split(' '); return p.length > 1 ? p.slice(1).join(' ') : n; };
 const ovrClass = v => v >= 88 ? 'o-elite' : v >= 82 ? 'o-gold' : v >= 76 ? 'o-silver' : 'o-bronze';
+// National flags as emoji (drawn by iOS, no image files). West Indies has no single flag, so it keeps its colour badge.
+const FLAG_ISO = { AUS: 'AU', IND: 'IN', NZ: 'NZ', SA: 'ZA', PAK: 'PK', SL: 'LK', BAN: 'BD', AFG: 'AF', IRE: 'IE', ZIM: 'ZW', NED: 'NL', USA: 'US', CAN: 'CA', NAM: 'NA', NEP: 'NP', OMA: 'OM', UAE: 'AE', ITA: 'IT', PNG: 'PG', UGA: 'UG', HK: 'HK', KEN: 'KE', MAS: 'MY', SIN: 'SG', THA: 'TH', QAT: 'QA', KUW: 'KW', DEN: 'DK', GER: 'DE', JER: 'JE', BER: 'BM', VAN: 'VU', ENG: 'gbeng', SCO: 'gbsct' };
+const flagFor = id => {
+  const c = FLAG_ISO[id]; if (!c) return null;
+  if (c.length > 2) return '\u{1F3F4}' + [...c].map(ch => String.fromCodePoint(0xE0000 + ch.charCodeAt(0))).join('') + '\u{E007F}'; // England / Scotland subdivision flags
+  return String.fromCodePoint(...[...c].map(ch => 0x1F1E6 + ch.charCodeAt(0) - 65));
+};
 const roleIcon = r => ({ BAT: '🏏', BAR: '🏏⚾', BWAR: '⚾🏏', BOWL: '⚾', WK: '🧤' }[r] || '');
 
 export class UI {
@@ -48,6 +55,10 @@ export class UI {
     const t = h('div', { class: 'toast' }, text); $('#modals').append(t); setTimeout(() => t.remove(), ms);
   }
   teamBadge(t, size = 44) {
+    const box = `width:${size}px;height:${size}px;`;
+    if (t.logo) return h('div', { class: 'badge', style: box + `background:#fff center/cover no-repeat url(${t.logo})` });
+    const flag = flagFor(t.id);
+    if (flag) return h('div', { class: 'badge', style: box + `background:${t.kit[0]};font-size:${Math.round(size * 0.6)}px` }, h('span', { style: 'line-height:1;text-shadow:none' }, flag));
     return h('div', { class: 'badge', style: `width:${size}px;height:${size}px;background:linear-gradient(135deg, ${t.kit[0]} 0 55%, ${t.kit[1]} 55% 100%);font-size:${size * 0.3}px` }, h('span', {}, t.short));
   }
 
@@ -338,6 +349,9 @@ export class UI {
     const list = t.players.slice().sort((a, b) => (a.pos[fmt] || 99) - (b.pos[fmt] || 99) || b.ovr - a.ovr);
     this.screen(h('div', {},
       this.header(t.name, () => this.teamsScreen()),
+      h('div', { class: 'section', style: 'display:flex;align-items:center;gap:12px' }, this.teamBadge(t, 56),
+        h('label', { class: 'btn' }, '🖼 Set logo', h('input', { type: 'file', accept: 'image/*', style: 'display:none', onchange: e => this.setLogo(t, e.target.files[0], () => this.squadScreen(tid, fmt)) })),
+        t.logo ? h('button', { class: 'btn ghost', onclick: () => { delete t.logo; this.app.saveTeams(); this.squadScreen(tid, fmt); } }, 'Remove') : null),
       h('div', { class: 'chips center' }, ['T20', 'ODI', 'TEST'].map(f => h('button', { class: 'chip ' + (f === fmt ? 'sel' : ''), onclick: () => this.squadScreen(tid, f) }, f === 'TEST' ? 'Test' : f))),
       h('div', { class: 'list' }, list.map(p => h('div', { class: 'p-row', onclick: () => this.editPlayer(tid, p.id, fmt) },
         h('span', { class: 'p-num' }, p.pos[fmt] ? String(p.pos[fmt]) : '–'),
@@ -346,6 +360,21 @@ export class UI {
         h('span', { class: 'ovr ' + ovrClass(p.ovr) }, String(p.ovr))))),
       h('div', { class: 'bottom-bar' }, h('button', { class: 'btn', onclick: () => this.editPlayer(tid, null, fmt) }, '+ Add player'), h('button', { class: 'btn gold wide', onclick: () => this.lineup({ tid, fmt }) }, `✏️ Edit default ${fmt === 'TEST' ? 'Test' : fmt} XI`)),
     ));
+  }
+  // Picked from the phone's photos, shrunk to 128px and kept only on this device (in the saved teams)
+  setLogo(t, file, done) {
+    if (!file) return;
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const g = c.getContext('2d'), k = Math.max(128 / img.width, 128 / img.height);
+      g.fillStyle = '#fff'; g.fillRect(0, 0, 128, 128);
+      g.drawImage(img, (128 - img.width * k) / 2, (128 - img.height * k) / 2, img.width * k, img.height * k);
+      t.logo = c.toDataURL('image/png'); URL.revokeObjectURL(img.src);
+      this.app.saveTeams(); this.toast('Logo saved'); done();
+    };
+    img.onerror = () => this.toast('Could not read that image');
+    img.src = URL.createObjectURL(file);
   }
   editPlayer(tid, pid, fmt) {
     const t = this.teams[tid];
@@ -425,7 +454,7 @@ export class UI {
     const bt = teams[m.teamIds[inn.bat]];
     $('#sb-team').innerHTML = ''; $('#sb-team').append(this.teamBadge(bt, 30));
     if (practice) {
-      $('#sb-score').textContent = `${practice.runs}/${practice.outs}`;
+      $('#sb-score').textContent = R.score(practice.runs, practice.outs);
       $('#sb-overs').textContent = `${practice.balls} balls`;
       $('#sb-info').textContent = `NETS · 4s ${practice.f4} · 6s ${practice.s6} · SR ${practice.balls ? Math.round(practice.runs * 100 / practice.balls) : 0}`;
       const b = R.findPlayer(teams, inn.striker), bw = R.findPlayer(teams, inn.curBowler);
@@ -434,7 +463,7 @@ export class UI {
       $('#sb-over').innerHTML = practice.log.map(x => `<i class="bl b${x}">${x === '0' ? '•' : x}</i>`).join('');
       return;
     }
-    $('#sb-score').textContent = `${inn.runs}/${inn.wkts}`;
+    $('#sb-score').textContent = R.score(inn.runs, inn.wkts);
     $('#sb-overs').textContent = m.overs ? `${R.oversStr(inn.balls)}/${m.overs}` : R.oversStr(inn.balls);
     let info = '';
     if (m.format === 'TEST') {
@@ -531,13 +560,13 @@ export class UI {
   }
   miniScore(m) {
     const inn = R.curInn(m);
-    return h('div', { class: 'mini-score' }, `${this.teams[m.teamIds[inn.bat]].short} ${inn.runs}/${inn.wkts} (${R.oversStr(inn.balls)})` + (inn.target ? ` · need ${inn.target - inn.runs}` : ''));
+    return h('div', { class: 'mini-score' }, `${this.teams[m.teamIds[inn.bat]].short} ${R.score(inn.runs, inn.wkts)} (${R.oversStr(inn.balls)})` + (inn.target ? ` · need ${inn.target - inn.runs}` : ''));
   }
   overBreak(m, cb) {
     const inn = R.curInn(m);
     const last = inn.overs[inn.overs.length - 1];
     if (!last) { cb(); return; }
-    this.toast(`End of over ${inn.overs.length}: ${last.runs} run${last.runs === 1 ? '' : 's'} · ${this.teams[m.teamIds[inn.bat]].short} ${inn.runs}/${inn.wkts}`, 1700);
+    this.toast(`End of over ${inn.overs.length}: ${last.runs} run${last.runs === 1 ? '' : 's'} · ${this.teams[m.teamIds[inn.bat]].short} ${R.score(inn.runs, inn.wkts)}`, 1700);
     setTimeout(cb, 900);
   }
   wicketCard(m, o) {
@@ -567,7 +596,7 @@ export class UI {
     const bats = inn.order.filter(id => inn.bs[id].b > 0 || inn.bs[id].out).map(id => ({ id, ...inn.bs[id] })).sort((a, b) => b.r - a.r).slice(0, 3);
     const bowls = Object.entries(inn.bw).map(([id, b]) => ({ id, ...b })).sort((a, b) => b.wkts - a.wkts || a.runs - b.runs).slice(0, 3);
     return h('div', { class: 'inn-sum' },
-      h('div', { class: 'inn-head' }, this.teamBadge(t, 34), h('b', {}, t.name), h('span', { class: 'big' }, `${inn.runs}/${inn.wkts}${inn.declared ? 'd' : ''}`), h('small', {}, `(${R.oversStr(inn.balls)} ov)`)),
+      h('div', { class: 'inn-head' }, this.teamBadge(t, 34), h('b', {}, t.name), h('span', { class: 'big' }, `${R.score(inn.runs, inn.wkts)}${inn.declared ? 'd' : ''}`), h('small', {}, `(${R.oversStr(inn.balls)} ov)`)),
       h('div', { class: 'two' }, h('div', {}, bats.map(b => h('div', { class: 'ln' }, h('span', {}, sur(m.names[b.id])), h('b', {}, `${b.r}${b.out ? '' : '*'} (${b.b})`)))),
         h('div', {}, bowls.map(b => h('div', { class: 'ln' }, h('span', {}, sur(m.names[b.id])), h('b', {}, `${b.wkts}-${b.runs}`))))));
   }
@@ -578,7 +607,7 @@ export class UI {
     const render = () => {
       body.innerHTML = '';
       const inn = m.innings[cur]; const t = this.teams[m.teamIds[inn.bat]];
-      body.append(h('div', { class: 'chips center' }, tabs.map((x, i) => h('button', { class: 'chip ' + (i === cur ? 'sel' : ''), onclick: () => { cur = i; render(); } }, `${this.teams[m.teamIds[x.bat]].short} ${x.runs}/${x.wkts}`))));
+      body.append(h('div', { class: 'chips center' }, tabs.map((x, i) => h('button', { class: 'chip ' + (i === cur ? 'sel' : ''), onclick: () => { cur = i; render(); } }, `${this.teams[m.teamIds[x.bat]].short} ${R.score(x.runs, x.wkts)}`))));
       const tb = h('table', { class: 'card' }, h('tr', {}, h('th', {}, 'Batter'), h('th', {}, ''), h('th', {}, 'R'), h('th', {}, 'B'), h('th', {}, '4s'), h('th', {}, '6s'), h('th', {}, 'SR')));
       inn.order.forEach(id => {
         const b = inn.bs[id];
@@ -586,7 +615,7 @@ export class UI {
         tb.append(h('tr', { class: status === 'dnb' ? 'dim' : '' }, h('td', {}, sur(m.names[id]) + (id === m.keeper[inn.bat] ? ' †' : '')), h('td', { class: 'how' }, status), h('td', {}, String(b.r)), h('td', {}, String(b.b)), h('td', {}, String(b.f4)), h('td', {}, String(b.s6)), h('td', {}, b.b ? (b.r * 100 / b.b).toFixed(0) : '-')));
       });
       const ex = inn.extras;
-      const tot = h('div', { class: 'ln' }, h('span', {}, `Extras ${ex.w + ex.nb + ex.b + ex.lb} (w ${ex.w}, nb ${ex.nb}, b ${ex.b}, lb ${ex.lb})`), h('b', {}, `${inn.runs}/${inn.wkts}${inn.declared ? 'd' : ''} (${R.oversStr(inn.balls)})`));
+      const tot = h('div', { class: 'ln' }, h('span', {}, `Extras ${ex.w + ex.nb + ex.b + ex.lb} (w ${ex.w}, nb ${ex.nb}, b ${ex.b}, lb ${ex.lb})`), h('b', {}, `${R.score(inn.runs, inn.wkts)}${inn.declared ? 'd' : ''} (${R.oversStr(inn.balls)})`));
       const bw = h('table', { class: 'card' }, h('tr', {}, h('th', {}, 'Bowler'), h('th', {}, 'O'), h('th', {}, 'M'), h('th', {}, 'R'), h('th', {}, 'W'), h('th', {}, 'Econ')));
       inn.bowlerOrder.forEach(id => { const b = inn.bw[id]; bw.append(h('tr', {}, h('td', {}, sur(m.names[id])), h('td', {}, R.oversStr(b.balls)), h('td', {}, String(b.maidens)), h('td', {}, String(b.runs)), h('td', {}, String(b.wkts)), h('td', {}, b.balls ? (b.runs * 6 / b.balls).toFixed(2) : '-'))); });
       const fow = h('p', { class: 'note' }, 'FoW: ' + inn.fow.map(f => `${f.wkt}-${f.score} (${sur(m.names[f.pid])}, ${f.over})`).join(', '));
@@ -608,7 +637,7 @@ export class UI {
       items.push(btn('⏩ Sim this over', () => g.simulate('over')));
       items.push(btn('⏭ Sim to end of innings', () => this.confirm('Simulate the rest of this innings?', () => g.simulate('innings'))));
       items.push(btn('🏁 Sim to end of match', () => this.confirm('Simulate the rest of the match?', () => g.simulate('match'))));
-      if (m.format === 'TEST' && userBat && !inn.done) items.push(btn('✋ Declare innings', () => this.confirm('Declare now at ' + inn.runs + '/' + inn.wkts + '?', () => { R.declare(m); g.save(); g.clearHumans(); g.phase = 'idle'; g.nextBall(); })));
+      if (m.format === 'TEST' && userBat && !inn.done) items.push(btn('✋ Declare innings', () => this.confirm('Declare now at ' + R.score(inn.runs, inn.wkts) + '?', () => { R.declare(m); g.save(); g.clearHumans(); g.phase = 'idle'; g.nextBall(); })));
     }
     items.push(btn('🎚 Difficulty', () => { g.paused = true; const body = h('div', {}); const fill = () => body.replaceChildren(...this.diffRows(fill)); fill(); this.modal('Difficulty', body, [{ label: 'Done', cls: 'gold', fn: () => { g.paused = false; } }], { cls: 'wide' }); }));
     items.push(btn('🔊 Sound: ' + (this.app.settings.sound ? 'On' : 'Off'), () => { this.app.settings.sound = !this.app.settings.sound; this.app.audio.setOn(this.app.settings.sound); this.app.saveSettings(); }));

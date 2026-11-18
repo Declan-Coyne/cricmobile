@@ -140,7 +140,7 @@ export function record(s, f, m, teams) {
     return [runs, balls];
   };
   const [ra, ba] = side(f.a), [rb, bb] = side(f.b);
-  f.res = { w, text, score: m.innings.map(i => `${teams[m.teamIds[i.bat]].short} ${i.runs}/${i.wkts}${i.declared ? 'd' : ''}`).join(' · '), ra, ba, rb, bb };
+  f.res = { w, text, score: m.innings.map(i => `${teams[m.teamIds[i.bat]].short} ${R.score(i.runs, i.wkts)}${i.declared ? 'd' : ''}`).join(' · '), ra, ba, rb, bb };
   f.done = true;
   for (const inn of m.innings) {
     const st = id => s.stats[id] = s.stats[id] || { name: m.names[id], team: id.split('_')[0], r: 0, hs: 0, w: 0, rc: 0 };

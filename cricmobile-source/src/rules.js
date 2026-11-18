@@ -72,6 +72,9 @@ export function teamTotals(m) {
   return t;
 }
 
+// Australian style: wickets/runs, e.g. 3/150
+export const score = (runs, wkts) => `${wkts}/${runs}`;
+
 export function oversStr(balls) { return Math.floor(balls / 6) + '.' + (balls % 6); }
 
 export function canBowl(m, pid) {
