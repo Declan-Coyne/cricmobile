@@ -20,12 +20,12 @@ async function checkForUpdate(app) {
     stage = 'version check'; step('Checking for updates…');
     const r = await CapacitorHttp.get({ url: UPDATE_BASE + 'version.json', responseType: 'text' });
     if (r.status !== 200) throw new Error('HTTP ' + r.status);
-    const build = +(typeof r.data === 'string' ? JSON.parse(r.data) : r.data).build;
+    const info = typeof r.data === 'string' ? JSON.parse(r.data) : r.data, build = +info.build;
     if (!(build > __BUILD__)) return step(`Up to date (latest is build ${build})`);
     const version = '1.0.' + build;
     stage = 'download'; step(`Downloading build ${build}…`);
     const have = (await CapacitorUpdater.list()).bundles.find(x => x.version === version && x.status !== 'error');
-    const bundle = have || await CapacitorUpdater.download({ url: `https://github.com/Declan-Coyne/cricmobile/releases/download/build-${build}/bundle.zip`, version });
+    const bundle = have || await CapacitorUpdater.download({ url: `https://github.com/Declan-Coyne/cricmobile/releases/download/build-${build}/bundle.zip`, version, checksum: info.checksum }); // SHA-256 of the zip, required by the updater
     stage = 'install';
     if (app.game.m) { // mid-match: don't reload under the player, install on next launch
       await CapacitorUpdater.next({ id: bundle.id });
@@ -71,7 +71,7 @@ class App {
   initRenderer() {
     const q = this.settings.quality;
     const r = this.renderer = new THREE.WebGLRenderer({ antialias: q !== 'low', powerPreference: 'high-performance' });
-    r.setPixelRatio(Math.min(window.devicePixelRatio, q === 'high' ? 2.5 : q === 'medium' ? 2 : 1.25));
+    r.setPixelRatio(Math.min(window.devicePixelRatio, q === 'high' ? 2 : q === 'medium' ? 1.5 : 1)); // >2x is invisible on a phone but heats it up
     r.setSize(innerWidth, innerHeight);
     r.shadowMap.enabled = q !== 'low'; r.shadowMap.type = THREE.PCFSoftShadowMap;
     r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.0;
@@ -85,7 +85,11 @@ class App {
     window.addEventListener('resize', resize); window.addEventListener('orientationchange', () => setTimeout(resize, 200));
   }
   frame() {
-    const now = performance.now(); let dt = (now - this.last) / 1000; this.last = now; dt = Math.min(dt, 1 / 20);
+    // Frame cap to keep the phone cool: 30fps on menus / pause, 60fps in play (ProMotion screens would otherwise run 120)
+    const idle = !this.game.m || this.game.paused || document.getElementById('screens').style.display === 'flex';
+    const now = performance.now();
+    if (now - this.last < (idle ? 1000 / 30 : 1000 / 60) - 2) return;
+    let dt = (now - this.last) / 1000; this.last = now; dt = Math.min(dt, 1 / 20);
     if (this.game.m) { if (!this.game.paused) this.game.update(dt); else this.stadium.update(this.game.time, dt); }
     else {
       // menu flyover

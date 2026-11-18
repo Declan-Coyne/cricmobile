@@ -50,5 +50,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           (cd www && zip -qr ../bundle.zip .)
-          echo "{\"build\": $BUILD_VERSION}" > version.json
+          echo "{\"build\": $BUILD_VERSION, \"checksum\": \"$(shasum -a 256 bundle.zip | cut -d' ' -f1)\"}" > version.json
           gh release create "build-$BUILD_VERSION" bundle.zip version.json ios/App/CricMobile.ipa --title "Build $BUILD_VERSION" --notes "Game update $BUILD_VERSION" --latest

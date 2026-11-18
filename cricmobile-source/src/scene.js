@@ -60,7 +60,7 @@ export class Stadium {
     const sun = this.sun = new THREE.DirectionalLight(0xfff3e0, 2.6);
     sun.position.set(45, 90, -35); sun.target.position.set(0, 0, FIELD_CZ * 0.5);
     sun.castShadow = true;
-    const sz = this.q === 'high' ? 4096 : 2048;
+    const sz = this.q === 'high' ? 2048 : 1024; // 4096 cost a lot of GPU heat for little visible gain
     sun.shadow.mapSize.set(sz, sz);
     const c = sun.shadow.camera; c.left = -75; c.right = 75; c.top = 75; c.bottom = -75; c.near = 10; c.far = 260;
     sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.03;
