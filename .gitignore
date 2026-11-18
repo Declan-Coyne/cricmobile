@@ -1,0 +1,8 @@
+node_modules/
+cricmobile-source/dist/
+cricmobile-source/www/
+cricmobile-source/ios/
+*.zip
+cricket26-offline/
+cricmobile-offline/
+/cricmobile.html
