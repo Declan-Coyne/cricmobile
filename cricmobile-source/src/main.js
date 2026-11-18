@@ -11,16 +11,21 @@ import { CapacitorUpdater } from '@capgo/capacitor-updater';
 
 // In the iPhone app: fetch newer game builds published as GitHub release assets. Applied the next time the app opens.
 const UPDATE_BASE = 'https://github.com/Declan-Coyne/cricmobile/releases/latest/download/';
-async function checkForUpdate(ui) {
+// app.updateStatus is shown in Settings so you can see the updater working
+async function checkForUpdate(app) {
+  app.updateStatus = 'Checking for updates…';
   try {
     await CapacitorUpdater.notifyAppReady(); // tells the updater this build started fine (else it rolls back)
     const r = await CapacitorHttp.get({ url: UPDATE_BASE + 'version.json' });
     const remote = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
-    if (r.status !== 200 || !(+remote.build > __BUILD__)) return;
+    if (r.status !== 200) throw new Error('HTTP ' + r.status);
+    if (!(+remote.build > __BUILD__)) { app.updateStatus = `Up to date (latest is build ${remote.build})`; return; }
+    app.updateStatus = `Downloading build ${remote.build}…`;
     const b = await CapacitorUpdater.download({ url: UPDATE_BASE + 'bundle.zip', version: '1.0.' + remote.build });
     await CapacitorUpdater.next({ id: b.id });
-    ui.toast('Update downloaded · close and reopen CricMobile to play it', 4000);
-  } catch (e) { console.warn('update check failed', e); } // offline or GitHub unreachable: keep playing the current build
+    app.updateStatus = `Build ${remote.build} downloaded · close and reopen the app to play it`;
+    app.ui.toast('Update downloaded · close and reopen CricMobile to play it', 4000);
+  } catch (e) { console.warn('update check failed', e); app.updateStatus = 'Could not check for updates (offline?)'; } // keep playing the current build
 }
 
 const LS = {
@@ -50,7 +55,8 @@ class App {
     // iOS only lets audio start on touchend/click, not pointerdown
     for (const ev of ['pointerdown', 'touchend', 'click']) window.addEventListener(ev, unlock, { passive: true });
     const ld = document.getElementById('loading'); if (ld) ld.remove();
-    if (Capacitor.isNativePlatform()) checkForUpdate(this.ui);
+    this.updateStatus = 'Updates only work in the iPhone app';
+    if (Capacitor.isNativePlatform()) this.checkUpdate();
   }
   initRenderer() {
     const q = this.settings.quality;
@@ -91,6 +97,7 @@ class App {
   loadMatch() { return LS.get('cm_match', null); }
   clearMatch() { LS.del('cm_match'); }
 
+  checkUpdate() { return Capacitor.isNativePlatform() ? checkForUpdate(this) : Promise.resolve(); }
   saveSeries() { if (this.series) LS.set('cm_series', this.series); else LS.del('cm_series'); }
   recordSeriesMatch(m) {
     const s = this.series, f = s && s.id === m.seriesId && s.fixtures[m.seriesFix];

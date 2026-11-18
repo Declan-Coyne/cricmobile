@@ -397,6 +397,10 @@ export class UI {
       h('div', { class: 'section' },
         tog('sound', 'Sound effects'), tog('crowdNoise', 'Crowd noise'), tog('pitchMarker', 'Show pitch marker & lengths when batting'), tog('batAssist', 'Batting timing assist'), tog('trail', 'Ball trail')),
       h('p', { class: 'note' }, 'Graphics changes apply after reopening the app.'),
+      h('div', { class: 'section' }, h('h3', {}, 'About'),
+        h('p', { class: 'note' }, `CricMobile build ${__BUILD__ || 'dev'}`, h('br'), this.app.updateStatus),
+        h('button', { class: 'btn', onclick: async () => { const p = this.app.checkUpdate(); this.settingsScreen(); await p; if ($('#screens .about-mark')) this.settingsScreen(); } }, '🔄 Check for updates')),
+      h('span', { class: 'about-mark' }),
     ));
   }
 
