@@ -6,6 +6,22 @@ import { UI } from './ui.js';
 import { Audio } from './audio.js';
 import * as R from './rules.js';
 import * as S from './series.js';
+import { Capacitor, CapacitorHttp } from '@capacitor/core';
+import { CapacitorUpdater } from '@capgo/capacitor-updater';
+
+// In the iPhone app: fetch newer game builds published as GitHub release assets. Applied the next time the app opens.
+const UPDATE_BASE = 'https://github.com/Declan-Coyne/cricmobile/releases/latest/download/';
+async function checkForUpdate(ui) {
+  try {
+    await CapacitorUpdater.notifyAppReady(); // tells the updater this build started fine (else it rolls back)
+    const r = await CapacitorHttp.get({ url: UPDATE_BASE + 'version.json' });
+    const remote = typeof r.data === 'string' ? JSON.parse(r.data) : r.data;
+    if (r.status !== 200 || !(+remote.build > __BUILD__)) return;
+    const b = await CapacitorUpdater.download({ url: UPDATE_BASE + 'bundle.zip', version: '1.0.' + remote.build });
+    await CapacitorUpdater.next({ id: b.id });
+    ui.toast('Update downloaded · close and reopen CricMobile to play it', 4000);
+  } catch (e) { console.warn('update check failed', e); } // offline or GitHub unreachable: keep playing the current build
+}
 
 const LS = {
   get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
@@ -34,6 +50,7 @@ class App {
     // iOS only lets audio start on touchend/click, not pointerdown
     for (const ev of ['pointerdown', 'touchend', 'click']) window.addEventListener(ev, unlock, { passive: true });
     const ld = document.getElementById('loading'); if (ld) ld.remove();
+    if (Capacitor.isNativePlatform()) checkForUpdate(this.ui);
   }
   initRenderer() {
     const q = this.settings.quality;

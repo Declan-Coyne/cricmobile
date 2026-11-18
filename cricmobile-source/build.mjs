@@ -3,7 +3,8 @@ import * as esbuild from 'esbuild';
 import fs from 'fs';
 import { execSync } from 'child_process';
 
-const res = await esbuild.build({ entryPoints: ['src/main.js'], bundle: true, loader: { '.csv': 'text' }, minify: true, format: 'iife', write: false, target: ['safari16'], legalComments: 'none' });
+const res = await esbuild.build({ entryPoints: ['src/main.js'], bundle: true, loader: { '.csv': 'text' }, define: { __BUILD__: String(+process.env.BUILD_VERSION || 0) }, // GitHub run number; 0 for local builds
+  minify: true, format: 'iife', write: false, target: ['safari16'], legalComments: 'none' });
 const js = res.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 const tpl = fs.readFileSync('src/index.html', 'utf8');
 const version = Date.now().toString(36);

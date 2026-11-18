@@ -3,9 +3,13 @@ name: Build iOS app
 on:
   push:
   workflow_dispatch:
+permissions:
+  contents: write # to publish the in-app update bundle as a release
 jobs:
   ios:
     runs-on: macos-15
+    env:
+      BUILD_VERSION: ${{ github.run_number }}
     defaults:
       run:
         working-directory: cricmobile-source
@@ -30,6 +34,7 @@ jobs:
           /usr/libexec/PlistBuddy -c "Add :UISupportedInterfaceOrientations array" -c "Add :UISupportedInterfaceOrientations:0 string UIInterfaceOrientationPortrait" $plist
           /usr/libexec/PlistBuddy -c "Delete :UISupportedInterfaceOrientations~ipad" $plist || true
           /usr/libexec/PlistBuddy -c "Add :UIRequiresFullScreen bool true" $plist || true
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_VERSION" $plist
       - name: Build unsigned IPA
         working-directory: cricmobile-source/ios/App
         run: |
@@ -40,3 +45,10 @@ jobs:
         with:
           name: CricMobile-ipa
           path: cricmobile-source/ios/App/CricMobile.ipa
+      - name: Publish in-app update
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          (cd www && zip -qr ../bundle.zip .)
+          echo "{\"build\": $BUILD_VERSION}" > version.json
+          gh release create "build-$BUILD_VERSION" bundle.zip version.json ios/App/CricMobile.ipa --title "Build $BUILD_VERSION" --notes "Game update $BUILD_VERSION" --latest

@@ -1,5 +1,12 @@
 {
   "appId": "com.cricmobile.game",
   "appName": "CricMobile",
-  "webDir": "www"
+  "webDir": "www",
+  "plugins": {
+    "CapacitorUpdater": {
+      "autoUpdate": false,
+      "statsUrl": "",
+      "appReadyTimeout": 15000
+    }
+  }
 }
