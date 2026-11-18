@@ -121,7 +121,7 @@ export function advance(s, teams) {
 export function makeMatch(s, f, teams) {
   const A = teams[f.a], B = teams[f.b];
   const xiA = defaultXI(A, s.format), xiB = defaultXI(B, s.format);
-  const m = R.newMatch({ format: s.format, overs: s.overs, teamA: f.a, teamB: f.b, xiA, xiB, keeperA: defaultKeeper(A, xiA), keeperB: defaultKeeper(B, xiB), userTeam: -1 }, teams);
+  const m = R.newMatch({ format: s.format, overs: s.overs, teamA: f.a, teamB: f.b, xiA, xiB, keeperA: defaultKeeper(A, xiA, s.format), keeperB: defaultKeeper(B, xiB, s.format), userTeam: -1 }, teams);
   R.startInnings(m, Math.random() < 0.5 ? 0 : 1);
   return m;
 }

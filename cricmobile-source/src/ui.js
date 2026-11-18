@@ -143,10 +143,17 @@ export class UI {
     return Math.round(ps.reduce((a, p) => a + p.ovr, 0) / ps.length);
   }
   defaultXI(t, fmt) { return defaultXI(t, fmt); }
-  defaultKeeper(t, xi) { return defaultKeeper(t, xi); }
-  lineup() {
-    const st = this.setup; const t = this.teams[st.user];
-    st.xi = this.defaultXI(t, st.format); st.keeper = this.defaultKeeper(t, st.xi);
+  defaultKeeper(t, xi, fmt) { return defaultKeeper(t, xi, fmt); }
+  saveDefaultXI(t, fmt, xi, keeper) {
+    for (const p of t.players) p.pos[fmt] = 0;
+    xi.forEach((id, i) => t.players.find(p => p.id === id).pos[fmt] = i + 1);
+    t.keepers = { ...t.keepers, [fmt]: keeper };
+    this.app.saveTeams(); this.toast(`Default ${fmt === 'TEST' ? 'Test' : fmt} XI saved`);
+  }
+  // edit = { tid, fmt } edits a team's saved default XI instead of picking one for a match
+  lineup(edit) {
+    const st = edit ? { user: edit.tid, format: edit.fmt } : this.setup; const t = this.teams[st.user];
+    st.xi = this.defaultXI(t, st.format); st.keeper = this.defaultKeeper(t, st.xi, st.format);
     let selected = null;
     const render = () => {
       const P = id => t.players.find(p => p.id === id);
@@ -156,7 +163,7 @@ export class UI {
         const a = st.xi.indexOf(selected), b = st.xi.indexOf(p.id);
         if (a >= 0 && b >= 0) { st.xi[a] = p.id; st.xi[b] = selected; }
         else if (a >= 0) st.xi[a] = p.id; else if (b >= 0) st.xi[b] = selected;
-        if (!st.xi.includes(st.keeper)) st.keeper = this.defaultKeeper(t, st.xi);
+        if (!st.xi.includes(st.keeper)) st.keeper = this.defaultKeeper(t, st.xi, st.format);
         selected = null; render();
       } },
         h('span', { class: 'p-num' }, inXI ? String(i + 1) : '–'),
@@ -165,14 +172,15 @@ export class UI {
         h('span', { class: 'ovr ' + ovrClass(p.ovr) }, String(p.ovr)));
       const bench = t.players.filter(p => !st.xi.includes(p.id));
       this.screen(h('div', {},
-        this.header(t.name + ' XI', () => st.seriesFix != null ? this.seriesHub() : this.pickTeams()),
+        this.header(t.name + (edit ? ` · default ${st.format === 'TEST' ? 'Test' : st.format} XI` : ' XI'), () => edit ? this.squadScreen(edit.tid, edit.fmt) : st.seriesFix != null ? this.seriesHub() : this.pickTeams()),
         h('div', { class: 'note' }, 'Tap a player, then tap another to swap batting positions or bring in a bench player. † = wicket-keeper.'),
         h('div', { class: 'list' }, st.xi.map((id, i) => row(P(id), i, true))),
         h('div', { class: 'section' }, h('h3', {}, 'Wicket-keeper'),
           h('select', { class: 'sel-input', onchange: e => { st.keeper = e.target.value; render(); } }, st.xi.map(id => { const o = h('option', { value: id }, P(id).name); if (id === st.keeper) o.selected = true; return o; }))),
         h('h3', { class: 'sub' }, 'Bench'),
         h('div', { class: 'list' }, bench.map(p => row(p, 0, false))),
-        h('div', { class: 'bottom-bar' }, h('button', { class: 'btn gold wide', onclick: () => this.toss() }, 'Next: Toss →')),
+        edit ? h('div', { class: 'bottom-bar' }, h('button', { class: 'btn gold wide', onclick: () => { this.saveDefaultXI(t, st.format, st.xi, st.keeper); this.squadScreen(edit.tid, edit.fmt); } }, '💾 Save default XI'))
+          : h('div', { class: 'bottom-bar' }, h('button', { class: 'btn', onclick: () => this.saveDefaultXI(t, st.format, st.xi, st.keeper) }, '💾 Save as default'), h('button', { class: 'btn gold wide', onclick: () => this.toss() }, 'Next: Toss →')),
       ));
     };
     render();
@@ -180,7 +188,7 @@ export class UI {
   toss() {
     const st = this.setup;
     const opp = this.teams[st.opp];
-    st.oppXI = this.defaultXI(opp, st.format); st.oppKeeper = this.defaultKeeper(opp, st.oppXI);
+    st.oppXI = this.defaultXI(opp, st.format); st.oppKeeper = this.defaultKeeper(opp, st.oppXI, st.format);
     const doToss = (call) => {
       const res = Math.random() < 0.5 ? 'Heads' : 'Tails';
       const won = res === call;
@@ -336,7 +344,7 @@ export class UI {
         h('div', { class: 'p-main' }, h('b', {}, `#${p.num} ${p.name}`), h('small', {}, `${ROLE_NAMES[p.role]} · ${p.bat}HB · ${STYLE_NAMES[p.style] || p.style} · ${p.age}y`)),
         h('span', { class: 'mini' }, 'BAT ' + p.batSkill), h('span', { class: 'mini' }, 'BWL ' + p.bowlSkill),
         h('span', { class: 'ovr ' + ovrClass(p.ovr) }, String(p.ovr))))),
-      h('div', { class: 'bottom-bar' }, h('button', { class: 'btn wide', onclick: () => this.editPlayer(tid, null, fmt) }, '+ Add player')),
+      h('div', { class: 'bottom-bar' }, h('button', { class: 'btn', onclick: () => this.editPlayer(tid, null, fmt) }, '+ Add player'), h('button', { class: 'btn gold wide', onclick: () => this.lineup({ tid, fmt }) }, `✏️ Edit default ${fmt === 'TEST' ? 'Test' : fmt} XI`)),
     ));
   }
   editPlayer(tid, pid, fmt) {
@@ -387,7 +395,7 @@ export class UI {
       choice('quality', 'Graphics quality', [['high', 'High'], ['medium', 'Medium'], ['low', 'Battery saver']]),
       choice('camera', 'Batting camera', [['broadcast', 'Broadcast'], ['close', 'Close']]),
       h('div', { class: 'section' },
-        tog('sound', 'Sound effects'), tog('crowdNoise', 'Crowd noise'), tog('pitchMarker', 'Show pitch marker when batting'), tog('batAssist', 'Batting timing assist'), tog('trail', 'Ball trail')),
+        tog('sound', 'Sound effects'), tog('crowdNoise', 'Crowd noise'), tog('pitchMarker', 'Show pitch marker & lengths when batting'), tog('batAssist', 'Batting timing assist'), tog('trail', 'Ball trail')),
       h('p', { class: 'note' }, 'Graphics changes apply after reopening the app.'),
     ));
   }

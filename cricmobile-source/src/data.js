@@ -212,7 +212,8 @@ export function defaultXI(t, fmt) {
   }
   return xi.slice(0, 11);
 }
-export function defaultKeeper(t, xi) {
+export function defaultKeeper(t, xi, fmt) {
+  if (t.keepers && xi.includes(t.keepers[fmt])) return t.keepers[fmt]; // saved from the default XI editor
   const ps = xi.map(id => t.players.find(p => p.id === id));
   const wks = ps.filter(p => p.role === 'WK');
   if (wks.length) return wks[wks.length - 1].id;

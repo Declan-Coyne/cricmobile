@@ -49,7 +49,7 @@ export class Game {
 
   makeMarker(col, r) {
     const g = new THREE.Group();
-    const ring = new THREE.Mesh(new THREE.RingGeometry(r * 0.7, r, 32), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.9, depthWrite: false }));
+    const ring = new THREE.Mesh(new THREE.RingGeometry(r * 0.7, r, 32), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.9, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -16, }) /* must out-pull the pitch polygonOffset in scene.js */);
     ring.rotation.x = -Math.PI / 2; g.add(ring);
     const dot = new THREE.Mesh(new THREE.CircleGeometry(r * 0.25, 16), ring.material); dot.rotation.x = -Math.PI / 2; g.add(dot);
     g.position.y = 0.02; g.renderOrder = 5;
@@ -59,7 +59,7 @@ export class Game {
     const g = new THREE.Group();
     const zones = [[0, 1.6, '#e8590c'], [1.6, 4, '#2f9e44'], [4, 7.5, '#1971c2'], [7.5, 12, '#c2255c']];
     for (const [a, b, c] of zones) {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(3.05, b - a), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.16, depthWrite: false }));
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(3.05, b - a), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.2, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -8, polygonOffsetUnits: -16 }));
       m.rotation.x = -Math.PI / 2; m.position.set(0, 0.015, -(a + b) / 2); g.add(m);
     }
     return g;
@@ -249,7 +249,7 @@ export class Game {
       this.phase = 'aim';
       this.aim = this.defaultAim(this.deliveryType);
       this.updateTargetMarker();
-      this.target.visible = true; this.zones.visible = true;
+      this.target.visible = true;
       this.ui.showBowlControls(this);
     } else {
       this.phase = 'wait';
@@ -257,6 +257,8 @@ export class Game {
       this.aiDel = AI.aiDelivery(m, this.bowler, this.striker, inn.balls);
       this.ui.showBatControls(this);
     }
+    // length bands: always when bowling, and when batting with the pitch marker setting on
+    this.zones.visible = role === 'bowl' || (role === 'bat' && this.settings.pitchMarker !== false);
     this.animateIdle();
   }
 
@@ -280,7 +282,7 @@ export class Game {
   startRunUp() {
     if (this.phase !== 'aim') return;
     this.phase = 'runup'; this.t0 = this.time;
-    this.target.visible = true; this.zones.visible = false;
+    this.target.visible = true;
     this.meter = { v: 0, dir: 1, locked: null, speed: METER_SPEED[this.settings.diffBowl] || 1 };
     this.ui.showMeter(true);
   }
@@ -550,7 +552,7 @@ export class Game {
   startHit(res, p, q) {
     const b = this.ball;
     this.phase = 'live';
-    this.hitT = 0; this.hitQ = q;
+    this.hitT = 0; this.hitQ = q; this.zones.visible = false;
     if (res.kind === 'hit') this.audio.bat(q); else this.audio.edge();
     const p0 = { x: p.x, y: Math.max(p.y, 0.15), z: p.z };
     this.hit = P.simulateHit(p0, res.v);
@@ -801,7 +803,7 @@ export class Game {
     if (o.wicket && this.ui) this.ui.banner(banner, 'out');
     else if (banner) this.ui.banner(banner, kind);
     this.outcome = o;
-    this.phase = 'dead'; this.deadT = 0; this.deadDur = o.wicket ? 2.6 : 1.4;
+    this.phase = 'dead'; this.deadT = 0; this.deadDur = o.wicket ? 2.6 : 1.4; this.zones.visible = false;
     this.camMode = 'bowl';
   }
   aiShotAttack() {
